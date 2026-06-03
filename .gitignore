@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+backend/venv/
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Reports
+reports/*.md
+reports/*.pdf
+!reports/.gitkeep
+
+# ChromaDB
+vector_db/*
+!vector_db/.gitkeep
+
+# Environment Variables
+.env
+
+# VS Code
+.vscode/
+
+# OS Files
+.DS_Store
+Thumbs.db
