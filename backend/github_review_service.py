@@ -6,6 +6,12 @@ from utils.report_saver import save_report
 from rag.review_query import generate_review_query
 from rag.vector_store import clear_collection
 from utils.file_reader import get_project_files
+from utils.report_summary import (
+    calculate_file_risk,calculate_overall_risk
+)
+from static_analysis.bandit_runner import (
+    run_bandit
+)
 import time
 import os
 
@@ -68,7 +74,8 @@ def review_github_repository(
     hybrid_files = hybrid_retrieve(query, files, semantic_top_k=5)
     ids = [f["filename"] for f in hybrid_files]
     documents = [f["content"] for f in hybrid_files]
-
+    filepaths = [f.get("filepath") for f in hybrid_files]
+    
     print(
         "Retrieved Files:",
         ids
@@ -76,8 +83,11 @@ def review_github_repository(
 
     all_reviews = ""
 
-    for filename, content in zip(
+    file_risks = []
+
+    for filename,filepath, content in zip(
         ids,
+        filepaths,
         documents
     ):
 
@@ -90,18 +100,44 @@ def review_github_repository(
             content
         )
 
+        if filepath:
+            bandit_findings = run_bandit(
+                filepath
+            )
+        else:
+            bandit_findings = []
+
+        if bandit_findings:
+
+            review += "\n\n## Static Analysis Findings\n"
+
+            for finding in bandit_findings:
+
+                review += f"\n* {finding}"
+
+        risk = calculate_file_risk(review)
+
+        file_risks.append(risk)
+
         all_reviews += (
             f"\n\n# File Review: {filename}\n\n"
+            f"## Risk Level\n"
+            f"* {risk}\n\n"
             + review
             + "\n"
         )
+    
+    overall_risk = calculate_overall_risk(
+        file_risks
+    )
 
     print("Generating Presentation Report")
 
     master_report = all_reviews.strip()
 
     report_file = save_report(
-        master_report
+        master_report,
+        overall_risk
     )
 
     return {

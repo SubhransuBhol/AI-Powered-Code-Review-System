@@ -64,6 +64,7 @@ def get_priority_files(files):
         if is_prio:
             priority_files.append({
                 "filename": filename,
+                "filepath": f.get("filepath"),
                 "content": content,
                 "source": "priority"
             })

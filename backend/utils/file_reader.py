@@ -66,9 +66,9 @@ def get_project_files(project_path):
                         file_path,
                         project_path
                     ),
+                    "filepath": file_path,
                     "content": content
                 })
-
             except Exception as e:
 
                 print(

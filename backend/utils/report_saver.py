@@ -6,7 +6,7 @@ from utils.report_summary import (
     calculate_summary
 )
 
-def save_report(report):
+def save_report(report,overall_risk):
     # Strip the Summary Dashboard from the report
     if "## Detailed File Reviews" in report:
         parts = report.split("## Detailed File Reviews", 1)
@@ -33,7 +33,8 @@ def save_report(report):
     generate_pdf_report(
         report,
         pdf_file,
-        summary
+        summary,
+        overall_risk
     )
 
     return {

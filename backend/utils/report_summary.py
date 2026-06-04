@@ -45,3 +45,28 @@ def calculate_summary(report_text):
         "security": security,
         "improvements": improvements
     }
+
+def calculate_file_risk(review_text):
+
+    summary = calculate_summary(review_text)
+
+    bugs = summary["bugs"]
+    security = summary["security"]
+
+    if security >= 2:
+        return "HIGH"
+
+    elif security >= 1 or bugs >= 1:
+        return "MEDIUM"
+
+    return "LOW"
+
+def calculate_overall_risk(file_risks):
+
+    if "HIGH" in file_risks:
+        return "HIGH"
+
+    elif "MEDIUM" in file_risks:
+        return "MEDIUM"
+
+    return "LOW"

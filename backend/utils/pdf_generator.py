@@ -15,7 +15,8 @@ from datetime import datetime
 def generate_pdf_report(
     report_text,
     pdf_path,
-    summary
+    summary,
+    overall_risk
 ):
 
     doc = SimpleDocTemplate(
@@ -100,7 +101,7 @@ def generate_pdf_report(
 
     elements.append(
         Paragraph(
-            "Summary Dashboard",
+            "Executive Summary",
             file_style
         )
     )
@@ -129,6 +130,13 @@ def generate_pdf_report(
     elements.append(
         Paragraph(
             f"Total Improvements Suggested: {summary['improvements']}",
+            body_style
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"Overall Risk Level: {overall_risk}",
             body_style
         )
     )
