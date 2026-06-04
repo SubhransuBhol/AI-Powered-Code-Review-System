@@ -1,4 +1,4 @@
-﻿from master_review import generate_master_review
+from master_review import generate_master_review
 from master_review_builder import (
     build_score,
     build_critical_issues,
@@ -17,6 +17,10 @@ from utils.file_reader import get_project_files
 from utils.report_summary import (
     calculate_file_risk,calculate_overall_risk
 )
+from utils.severity_mapper import (
+    get_bandit_severity, add_severity_to_review
+)
+from utils.fix_generator import add_fixes_to_review
 from static_analysis.bandit_runner import (
     run_bandit
 )
@@ -143,6 +147,7 @@ def review_github_repository(
         print(f"Reviewing: {filename}")
 
         review = review_single_file(filename, content)
+        review = add_severity_to_review(review)
 
         if filepath:
             bandit_findings = run_bandit(filepath)
@@ -152,7 +157,10 @@ def review_github_repository(
         if bandit_findings:
             review += "\n\n## Static Analysis Findings\n"
             for finding in bandit_findings:
-                review += f"\n* {finding}"
+                severity = get_bandit_severity(finding)
+                review += f"\n* [{severity}] {finding}"
+
+        review = add_fixes_to_review(review)
 
         risk = calculate_file_risk(review)
         file_risks.append(risk)

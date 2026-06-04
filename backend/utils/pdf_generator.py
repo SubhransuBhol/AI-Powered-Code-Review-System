@@ -118,6 +118,28 @@ def generate_pdf_report(
         spaceAfter=4
     )
 
+    suggested_fix_header_style = ParagraphStyle(
+        "SuggestedFixHeader",
+        fontName="Helvetica-Bold",
+        fontSize=11,
+        leading=15,
+        textColor=colors.HexColor("#2B6CB0"),  # Medium Blue
+        spaceBefore=10,
+        spaceAfter=4,
+        leftIndent=15,
+        keepWithNext=True
+    )
+
+    code_style = ParagraphStyle(
+        "CodeSnippet",
+        fontName="Courier",
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor("#2D3748"),  # Dark Charcoal
+        leftIndent=25,
+        spaceAfter=2
+    )
+
     footer_style = ParagraphStyle(
         "CustomFooter",
         fontName="Helvetica-Oblique",
@@ -182,8 +204,44 @@ def generate_pdf_report(
     # =========================
     # REPORT CONTENT PARSING
     # =========================
-    for line in report_text.splitlines():
-        line = line.strip()
+    in_suggested_fix = False
+
+    for raw_line in report_text.splitlines():
+        line = raw_line.strip()
+
+        # Check for Suggested Fix header
+        if line == "Suggested Fix:":
+            in_suggested_fix = True
+            elements.append(
+                Paragraph("Suggested Fix", suggested_fix_header_style)
+            )
+            continue
+
+        if in_suggested_fix:
+            # Check if this line ends the suggested fix block (e.g. starts with a bullet or section)
+            is_bullet = line.startswith("•") or line.startswith("* ") or line.startswith("- ") or (line.startswith("*") and not line.startswith("**"))
+            
+            if line.startswith("#") or line.upper() == "PROJECT LEVEL ANALYSIS" or is_bullet or line.startswith("---"):
+                in_suggested_fix = False
+                elements.append(Spacer(1, 8))
+            else:
+                # Format this code line
+                escaped_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                # Strip the first 2 markdown indentation spaces if present
+                code_line = raw_line
+                if code_line.startswith("  "):
+                    code_line = code_line[2:]
+                
+                num_spaces = len(code_line) - len(code_line.lstrip(' '))
+                if num_spaces > 0:
+                    escaped_line = "&nbsp;" * num_spaces + code_line.lstrip(' ')
+                else:
+                    escaped_line = code_line
+                
+                elements.append(
+                    Paragraph(escaped_line, code_style)
+                )
+                continue
 
         if not line:
             continue

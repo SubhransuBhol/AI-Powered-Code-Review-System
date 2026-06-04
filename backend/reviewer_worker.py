@@ -7,6 +7,7 @@ from static_analysis.bandit_runner import (
 from utils.severity_mapper import (
     get_bandit_severity, add_severity_to_review
 )
+from utils.fix_generator import add_fixes_to_review
 
 
 def review_file(file_data):
@@ -34,19 +35,15 @@ def review_file(file_data):
     review = add_severity_to_review(review)
     
     if bandit_findings:
-
         review += "\n\n## Static Analysis Findings\n"
-
         for finding in bandit_findings:
-
             severity = get_bandit_severity(
                 finding
             )
-
             review += (
                 f"\n* [{severity}] {finding}"
             )
 
-    
+    review = add_fixes_to_review(review)
 
     return filename, review
