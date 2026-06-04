@@ -42,6 +42,37 @@ def parse_issues(review_text):
                     improvement_count += 1
     return bugs_count, security_count, improvement_count
 
+def parse_single_review(review_text):
+    bugs_count = 0
+    security_count = 0
+    improvements_count = 0
+    findings = []
+    current_section = None
+    
+    for line in review_text.splitlines():
+        line_stripped = line.strip()
+        if line_stripped.startswith("## Bugs"):
+            current_section = "bugs"
+        elif line_stripped.startswith("## Security Issues"):
+            current_section = "security"
+        elif line_stripped.startswith("## Improvements"):
+            current_section = "improvements"
+        elif line_stripped.startswith("# File Review:"):
+            current_section = None
+        elif line_stripped.startswith(("* ", "- ")):
+            bullet_content = line_stripped[2:].strip()
+            compare_content = bullet_content.lower()
+            if compare_content not in ("none", "...", "none."):
+                if current_section == "bugs":
+                    bugs_count += 1
+                    findings.append(bullet_content)
+                elif current_section == "security":
+                    security_count += 1
+                    findings.append(bullet_content)
+                elif current_section == "improvements":
+                    improvements_count += 1
+    return bugs_count, security_count, improvements_count, findings
+
 def review_project(zip_path):
     total_start_time = time.time()
 
@@ -78,29 +109,25 @@ def review_project(zip_path):
     print("Retrieving Relevant Files")
 
     hybrid_files = hybrid_retrieve(query, files, semantic_top_k=5)
-    filepaths = [f.get("filepath") for f in hybrid_files]
-    ids = [os.path.basename(f["filename"]) for f in hybrid_files]
+    ids = [f["filename"] for f in hybrid_files]
     documents = [f["content"] for f in hybrid_files]
 
     print(
         "Retrieved Files:",
         ids
     )
-    file_risks = []
 
     all_reviews = ""
 
     review_jobs = []
 
-    for filename, filepath, content in zip(
+    for filename, content in zip(
         ids,
-        filepaths,
         documents
     ):
 
         review_jobs.append({
             "filename": filename,
-            "filepath": filepath,
             "content": content
         })
 
@@ -127,11 +154,26 @@ def review_project(zip_path):
             review_jobs
         )
 
+        file_risks = []
+        high_risk_files = []
+        total_bugs = 0
+        total_security = 0
+        total_improvements = 0
+        critical_findings = []
+
         for filename, review in results:
 
             risk = calculate_file_risk(review)
 
             file_risks.append(risk)
+            if risk.upper() == "HIGH":
+                high_risk_files.append(filename)
+
+            bugs, sec, imps, findings = parse_single_review(review)
+            total_bugs += bugs
+            total_security += sec
+            total_improvements += imps
+            critical_findings.extend(findings)
 
             all_reviews += (
                 f"\n\n# File Review: {filename}\n\n"
@@ -145,10 +187,50 @@ def review_project(zip_path):
         file_risks
     )  
 
-    print("Generating Presentation Report")
+    print("Generating Master Review")
 
-    master_report = all_reviews.strip()
+    start = time.time()
 
+    high_risk_str = ""
+    if high_risk_files:
+        for hrf in high_risk_files:
+            high_risk_str += f"\n* {hrf}"
+    else:
+        high_risk_str = "\n* None"
+
+    critical_str = ""
+    if critical_findings:
+        for cf in critical_findings:
+            critical_str += f"\n* {cf}"
+    else:
+        critical_str = "\n* None"
+
+    master_review_input = f"""Files Reviewed: {len(ids)}
+        Overall Risk: {overall_risk}
+        Total Bugs: {total_bugs}
+        Total Security Issues: {total_security}
+        Total Improvements: {total_improvements}
+
+        High Risk Files:{high_risk_str}
+
+        Critical Findings:{critical_str}"""
+
+    project_summary = generate_master_review(
+        master_review_input
+    )
+
+    print(
+        "Master Review Time:",
+        round(time.time() - start, 2),
+        "sec"
+    )
+
+    master_report = (
+        "# PROJECT LEVEL ANALYSIS\n\n"
+        + project_summary
+        + "\n\n"
+        + all_reviews.strip()
+    )
     report_file = save_report(master_report,overall_risk)
 
     return {

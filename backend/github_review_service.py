@@ -1,4 +1,5 @@
-﻿from utils.github_cloner import clone_repository
+﻿from master_review import generate_master_review
+from utils.github_cloner import clone_repository
 from rag.project_vectorizer import vectorize_project
 from rag.hybrid_retriever import hybrid_retrieve
 from review_engine import review_single_file
@@ -36,6 +37,37 @@ def parse_issues(review_text):
                 elif current_section == "security":
                     security_count += 1
     return bugs_count, security_count
+
+def parse_single_review(review_text):
+    bugs_count = 0
+    security_count = 0
+    improvements_count = 0
+    findings = []
+    current_section = None
+    
+    for line in review_text.splitlines():
+        line_stripped = line.strip()
+        if line_stripped.startswith("## Bugs"):
+            current_section = "bugs"
+        elif line_stripped.startswith("## Security Issues"):
+            current_section = "security"
+        elif line_stripped.startswith("## Improvements"):
+            current_section = "improvements"
+        elif line_stripped.startswith("# File Review:"):
+            current_section = None
+        elif line_stripped.startswith(("* ", "- ")):
+            bullet_content = line_stripped[2:].strip()
+            compare_content = bullet_content.lower()
+            if compare_content not in ("none", "...", "none."):
+                if current_section == "bugs":
+                    bugs_count += 1
+                    findings.append(bullet_content)
+                elif current_section == "security":
+                    security_count += 1
+                    findings.append(bullet_content)
+                elif current_section == "improvements":
+                    improvements_count += 1
+    return bugs_count, security_count, improvements_count, findings
 
 def review_github_repository(
     repo_url
@@ -82,42 +114,42 @@ def review_github_repository(
     )
 
     all_reviews = ""
-
     file_risks = []
+    high_risk_files = []
+    total_bugs = 0
+    total_security = 0
+    total_improvements = 0
+    critical_findings = []
 
-    for filename,filepath, content in zip(
+    for filename, filepath, content in zip(
         ids,
         filepaths,
         documents
     ):
+        print(f"Reviewing: {filename}")
 
-        print(
-            f"Reviewing: {filename}"
-        )
-
-        review = review_single_file(
-            filename,
-            content
-        )
+        review = review_single_file(filename, content)
 
         if filepath:
-            bandit_findings = run_bandit(
-                filepath
-            )
+            bandit_findings = run_bandit(filepath)
         else:
             bandit_findings = []
 
         if bandit_findings:
-
             review += "\n\n## Static Analysis Findings\n"
-
             for finding in bandit_findings:
-
                 review += f"\n* {finding}"
 
         risk = calculate_file_risk(review)
-
         file_risks.append(risk)
+        if risk.upper() == "HIGH":
+            high_risk_files.append(filename)
+
+        bugs, sec, imps, findings = parse_single_review(review)
+        total_bugs += bugs
+        total_security += sec
+        total_improvements += imps
+        critical_findings.extend(findings)
 
         all_reviews += (
             f"\n\n# File Review: {filename}\n\n"
@@ -127,13 +159,44 @@ def review_github_repository(
             + "\n"
         )
     
-    overall_risk = calculate_overall_risk(
-        file_risks
-    )
+    overall_risk = calculate_overall_risk(file_risks)
 
     print("Generating Presentation Report")
 
-    master_report = all_reviews.strip()
+    high_risk_str = ""
+    if high_risk_files:
+        for hrf in high_risk_files:
+            high_risk_str += f"\n* {hrf}"
+    else:
+        high_risk_str = "\n* None"
+
+    critical_str = ""
+    if critical_findings:
+        for cf in critical_findings:
+            critical_str += f"\n* {cf}"
+    else:
+        critical_str = "\n* None"
+
+    master_review_input = f"""Files Reviewed: {len(ids)}
+        Overall Risk: {overall_risk}
+        Total Bugs: {total_bugs}
+        Total Security Issues: {total_security}
+        Total Improvements: {total_improvements}
+
+        High Risk Files:{high_risk_str}
+
+        Critical Findings:{critical_str}"""
+
+    project_summary = generate_master_review(
+        master_review_input
+    )
+
+    master_report = (
+        "# PROJECT LEVEL ANALYSIS\n\n"
+        + project_summary
+        + "\n\n"
+        + all_reviews.strip()
+    )
 
     report_file = save_report(
         master_report,
