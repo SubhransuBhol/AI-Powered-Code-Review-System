@@ -1,4 +1,4 @@
-from master_review import generate_master_review
+﻿from master_review import generate_master_review
 from master_review_builder import (
     build_score,
     build_critical_issues,
@@ -50,6 +50,7 @@ def parse_single_review(review_text):
     security_count = 0
     improvements_count = 0
     findings = []
+    seen_findings = set()
     current_section = None
     
     for line in review_text.splitlines():
@@ -68,10 +69,16 @@ def parse_single_review(review_text):
             if compare_content not in ("none", "...", "none."):
                 if current_section == "bugs":
                     bugs_count += 1
-                    findings.append(bullet_content)
+                    issue_key = bullet_content.split(":")[0].strip()
+                    if issue_key not in seen_findings:
+                        findings.append(bullet_content)
+                        seen_findings.add(issue_key)
                 elif current_section == "security":
                     security_count += 1
-                    findings.append(bullet_content)
+                    issue_key = bullet_content.split(":")[0].strip()
+                    if issue_key not in seen_findings:
+                        findings.append(bullet_content)
+                        seen_findings.add(issue_key)
                 elif current_section == "improvements":
                     improvements_count += 1
     return bugs_count, security_count, improvements_count, findings

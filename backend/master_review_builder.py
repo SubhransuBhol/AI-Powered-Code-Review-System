@@ -20,9 +20,29 @@ def build_score(bugs, security, improvements):
     return f"## Code Quality Score\n* {score}/10 ({score_just})"
 
 def build_critical_issues(critical_findings):
+
+    unique_findings = []
+    seen = set()
+
+    for finding in critical_findings:
+
+        issue_key = finding.split(":")[0].strip()
+
+        if issue_key not in seen:
+            unique_findings.append(finding)
+            seen.add(issue_key)
+
+    critical_findings = unique_findings
+    
     """
     Formats the critical issues section.
     """
+    critical_findings = list(
+        dict.fromkeys(
+            critical_findings
+        )
+    )
+
     if critical_findings:
         items = []
         for finding in critical_findings[:3]:

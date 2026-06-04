@@ -3,11 +3,23 @@ import os
 SUPPORTED_EXTENSIONS = (
     ".py",
     ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
     ".java",
     ".cpp",
     ".c",
     ".html",
-    ".css"
+    ".css",
+    ".php",
+    ".go",
+    ".rs",
+    ".sql",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".xml",
+    ".kt"
 )
 
 IGNORE_FOLDERS = (

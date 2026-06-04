@@ -4,6 +4,9 @@ from review_engine import review_single_file
 from static_analysis.bandit_runner import (
     run_bandit
 )
+from utils.severity_mapper import (
+    get_bandit_severity, add_severity_to_review
+)
 
 
 def review_file(file_data):
@@ -27,12 +30,23 @@ def review_file(file_data):
         filename,
         content
     )
+
+    review = add_severity_to_review(review)
+    
     if bandit_findings:
 
         review += "\n\n## Static Analysis Findings\n"
 
         for finding in bandit_findings:
 
-            review += f"\n* {finding}"
+            severity = get_bandit_severity(
+                finding
+            )
+
+            review += (
+                f"\n* [{severity}] {finding}"
+            )
+
+    
 
     return filename, review
