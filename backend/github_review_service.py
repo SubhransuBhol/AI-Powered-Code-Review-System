@@ -1,4 +1,11 @@
-﻿from master_review import generate_master_review
+from master_review import generate_master_review
+from master_review_builder import (
+    build_score,
+    build_critical_issues,
+    build_recommendations,
+    parse_llm_sections,
+    stitch_master_review
+)
 from utils.github_cloner import clone_repository
 from rag.project_vectorizer import vectorize_project
 from rag.hybrid_retriever import hybrid_retrieve
@@ -162,6 +169,17 @@ def review_github_repository(
     overall_risk = calculate_overall_risk(file_risks)
 
     print("Generating Presentation Report")
+    master_total_start = time.time()
+
+    score_sec = build_score(total_bugs, total_security, total_improvements)
+    critical_sec = build_critical_issues(critical_findings)
+    recs_sec = build_recommendations(total_bugs, total_security, total_improvements)
+    
+    py_sections = {
+        "code_quality": score_sec,
+        "critical_issues": critical_sec,
+        "recommendations": recs_sec
+    }
 
     high_risk_str = ""
     if high_risk_files:
@@ -187,9 +205,11 @@ def review_github_repository(
 
         Critical Findings:{critical_str}"""
 
-    project_summary = generate_master_review(
-        master_review_input
-    )
+    llm_output = generate_master_review(master_review_input)
+    llm_sections = parse_llm_sections(llm_output)
+    project_summary = stitch_master_review(llm_sections, py_sections)
+
+    master_total_time = time.time() - master_total_start
 
     master_report = (
         "# PROJECT LEVEL ANALYSIS\n\n"

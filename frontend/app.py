@@ -150,7 +150,7 @@ with tab2:
         if repo_url:
 
             with st.spinner(
-                "Cloning repository and reviewing..."
+                "Cloning repository and reviewing...This may take 2-3 minutes."
             ):
 
                 response = requests.post(

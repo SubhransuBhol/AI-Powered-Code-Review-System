@@ -1,4 +1,4 @@
-﻿from rag.project_vectorizer import vectorize_project
+from rag.project_vectorizer import vectorize_project
 from rag.hybrid_retriever import hybrid_retrieve
 from rag.review_query import generate_review_query
 from utils.zip_handler import extract_zip
@@ -6,6 +6,13 @@ from utils.file_reader import get_project_files
 from rag.vector_store import clear_collection
 from review_engine import review_single_file
 from master_review import generate_master_review
+from master_review_builder import (
+    build_score,
+    build_critical_issues,
+    build_recommendations,
+    parse_llm_sections,
+    stitch_master_review
+)
 from utils.report_saver import save_report
 from utils.report_summary import (
     calculate_file_risk,calculate_overall_risk
@@ -189,7 +196,17 @@ def review_project(zip_path):
 
     print("Generating Master Review")
 
-    start = time.time()
+    master_total_start = time.time()
+
+    score_sec = build_score(total_bugs, total_security, total_improvements)
+    critical_sec = build_critical_issues(critical_findings)
+    recs_sec = build_recommendations(total_bugs, total_security, total_improvements)
+    
+    py_sections = {
+        "code_quality": score_sec,
+        "critical_issues": critical_sec,
+        "recommendations": recs_sec
+    }
 
     high_risk_str = ""
     if high_risk_files:
@@ -215,15 +232,11 @@ def review_project(zip_path):
 
         Critical Findings:{critical_str}"""
 
-    project_summary = generate_master_review(
-        master_review_input
-    )
+    llm_output = generate_master_review(master_review_input)
+    llm_sections = parse_llm_sections(llm_output)
+    project_summary = stitch_master_review(llm_sections, py_sections)
 
-    print(
-        "Master Review Time:",
-        round(time.time() - start, 2),
-        "sec"
-    )
+    master_total_time = time.time() - master_total_start
 
     master_report = (
         "# PROJECT LEVEL ANALYSIS\n\n"
