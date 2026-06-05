@@ -1,4 +1,4 @@
-﻿from langchain_ollama import OllamaLLM
+from langchain_ollama import OllamaLLM
 import time
 
 llm = OllamaLLM(
@@ -10,10 +10,28 @@ llm = OllamaLLM(
     }
 )
 
-def review_single_file(filename, content):
-    prompt = f"""
-Review this file.
+def review_single_file(filename, content, project_context=None):
+    context_insertion = ""
+    if project_context:
+        context_insertion = f"\nLightweight Project Context:\n{project_context}\n"
+        
+    config_filenames = [".env", ".env.example", "config.py", "settings.py", "config.json", "config.yaml", "config.yml", "application.properties"]
+    is_config = any(cfg in filename.lower() for cfg in config_filenames)
+    
+    config_instruction = ""
+    if is_config:
+        config_instruction = """
+Specialized Configuration Review Instructions:
+This is a configuration file. You must review it specifically for:
+- Exposed secrets or hardcoded credentials
+- Debug flags enabled in production environments (e.g., DEBUG=True, FLASK_DEBUG=True, NODE_ENV=development)
+- Insecure defaults (e.g., host binding to 0.0.0.0, disabled SSL/TLS verification)
+Generate dedicated configuration findings in the sections below if present.
+"""
 
+    prompt = f"""
+Review this file: {filename}
+{context_insertion}
 Return ONLY:
 
 ## Bugs
@@ -57,6 +75,7 @@ Do not classify missing best practices as bugs.
 unless the absence directly creates a visible vulnerability.
 * Do not assume future requirements.
 * If an issue is uncertain, do not report it.
+{config_instruction}
 
 Code:
 {content}

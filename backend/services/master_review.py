@@ -19,6 +19,10 @@ Rules:
 1. Do NOT write any introduction, pleasantries, or filler text. Start directly with the markdown format below.
 2. Keep each section extremely brief (maximum 2-3 sentences or bullet points).
 3. Do NOT invent new bugs or speculate. Summarize only from the provided metrics.
+4. If there are critical issues, SQL injections, hardcoded credentials, or security findings in the metrics:
+   - Do NOT state that security is good, strong, or robust.
+   - Do NOT state that the repository is safe or low risk.
+   - Ensure the assessment accurately reflects the detected risks and highlights areas needing remediation.
 
 Format the output EXACTLY as follows:
 

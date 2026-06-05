@@ -23,6 +23,9 @@ def calculate_summary(report_text):
         elif line.startswith("## Improvements"):
             current_section = "improvements"
 
+        elif line.startswith("##") or line.startswith("#"):
+            current_section = None
+
         elif line.startswith("*"):
 
             content = line[1:].strip()

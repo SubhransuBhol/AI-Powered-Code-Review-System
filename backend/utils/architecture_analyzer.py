@@ -184,14 +184,14 @@ def analyze_architecture(files_dict):
     layers_count = len(layers)
     is_mixed_without_manifests = (len(lang_counts) > 1) and (not manifests_present)
 
-    # HIGH: Monolithic structure, Large project without organization, No identifiable layers
-    if layers_count == 0 or (total_files > 5 and not has_subfolders) or (total_files > 5 and root_file_percentage > 0.70):
+    # HIGH: No identifiable layers, or large monolithic folder structure without layers
+    if layers_count == 0 or (total_files > 10 and not has_subfolders and layers_count <= 1):
         risk_level = "HIGH"
-    # MEDIUM: Partial architecture issues, Mixed concerns (mixed languages without manifests), Missing layers / >70% root
-    elif is_mixed_without_manifests or (total_files > 5 and layers_count == 1) or (root_file_percentage > 0.70):
+    # MEDIUM: Monolithic folder structure but has good layer separation (layers >= 2), or partial layering
+    elif (not has_subfolders and layers_count >= 2) or (total_files > 5 and layers_count <= 1) or (root_file_percentage > 0.70):
         risk_level = "MEDIUM"
-    # LOW: Clear layered structure (layers >= 2, root <= 70%), Small project with concerns (files <= 5, layers >= 1, subfolders exist)
-    elif (layers_count >= 2 and root_file_percentage <= 0.70) or (total_files <= 5 and layers_count >= 1 and has_subfolders):
+    # LOW: Good folder organization (has subfolders, root percentage <= 70%) and clear layering (layers >= 2)
+    elif has_subfolders and root_file_percentage <= 0.70 and layers_count >= 2:
         risk_level = "LOW"
     else:
         risk_level = "MEDIUM"

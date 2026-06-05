@@ -36,8 +36,6 @@ CONTENT_PRIORITY_PATTERNS = [
     "secret"
 ]
 
-MAX_REVIEW_FILES = 8
-
 def get_priority_files(files):
     """
     Filter files by priority keywords in filename or priority patterns in content.
@@ -71,53 +69,124 @@ def get_priority_files(files):
             
     return priority_files
 
+def get_max_review_files(total_files):
+    return min(
+        40,
+        max(20, int(total_files * 0.3))
+    )
+
 def hybrid_retrieve(query, all_files, semantic_top_k=5):
     """
-    Retrieves project files using hybrid logic: Priority heuristic matches + Semantic matches.
+    Retrieves project files using hybrid logic: Priority heuristic matches + Risk matches + Semantic matches.
     """
+    from static_analysis.risk_file_selector import detect_risky_files
+
     # 1. Fetch priority heuristic matches
     priority_files = get_priority_files(all_files)
     
-    # 2. Fetch semantic matches from ChromaDB
+    # 2. Fetch risk-based matches
+    risk_files, all_scores = detect_risky_files(all_files)
+    
+    # 3. Fetch semantic matches from ChromaDB
     results = retrieve_code(query, top_k=semantic_top_k)
     semantic_files = []
+    semantic_scores_dict = {}
+    file_map = {f["filename"]: f for f in all_files}
+    
     if results and "ids" in results and results["ids"] and "documents" in results and results["documents"]:
         ids = results["ids"][0]
         documents = results["documents"][0]
-        for fid, doc in zip(ids, documents):
+        distances = results.get("distances", [[]])[0] if "distances" in results else [1.0] * len(ids)
+        for i, (fid, doc) in enumerate(zip(ids, documents)):
+            filepath = file_map.get(fid, {}).get("filepath")
+            dist = distances[i] if i < len(distances) else 1.0
+            sem_score = max(0.0, 10.0 - dist)
+            semantic_scores_dict[fid] = sem_score
             semantic_files.append({
                 "filename": fid,
                 "content": doc,
+                "filepath": filepath,
                 "source": "semantic"
             })
             
-    # 3. Merge lists: Priority files first, then semantic files
-    merged = []
-    seen = set()
+    # 4. Score and Rank candidates: score = (priority_match * 100) + risk_score + semantic_score
+    candidates = {}
     
+    # Track priority files
     for f in priority_files:
         filename = f["filename"]
-        if filename not in seen:
-            seen.add(filename)
-            merged.append(f)
+        candidates[filename] = {
+            "file": f,
+            "priority_match": 1,
+            "risk_score": all_scores.get(filename, 0),
+            "semantic_score": semantic_scores_dict.get(filename, 0.0)
+        }
+        
+    # Track risk files
+    for f in risk_files:
+        filename = f["filename"]
+        if filename not in candidates:
+            candidates[filename] = {
+                "file": {
+                    "filename": filename,
+                    "filepath": f.get("filepath"),
+                    "content": f.get("content"),
+                    "source": "risk"
+                },
+                "priority_match": 0,
+                "risk_score": all_scores.get(filename, 0),
+                "semantic_score": semantic_scores_dict.get(filename, 0.0)
+            }
             
+    # Track semantic files
     for f in semantic_files:
         filename = f["filename"]
-        if filename not in seen:
-            seen.add(filename)
-            merged.append(f)
+        if filename not in candidates:
+            candidates[filename] = {
+                "file": f,
+                "priority_match": 0,
+                "risk_score": all_scores.get(filename, 0),
+                "semantic_score": semantic_scores_dict.get(filename, 0.0)
+            }
             
-    # 4. Cap final files to MAX_REVIEW_FILES
-    final_files = merged[:MAX_REVIEW_FILES]
+    # Calculate score for each candidate
+    ranked_candidates = []
+    for filename, data in candidates.items():
+        score = (data["priority_match"] * 100) + data["risk_score"] + data["semantic_score"]
+        ranked_candidates.append({
+            "filename": filename,
+            "file": data["file"],
+            "score": score
+        })
+        
+    # Sort descending by score
+    ranked_candidates.sort(key=lambda x: x["score"], reverse=True)
     
-    # 5. Log details
-    print("Priority Files:")
-    print([f["filename"] for f in priority_files])
-    print()
-    print("Semantic Files:")
-    print([f["filename"] for f in semantic_files])
-    print()
-    print("Final Files Selected:")
-    print([(f["filename"], f["source"]) for f in final_files])
+    max_review_files = get_max_review_files(len(all_files))
+    selected_candidates = ranked_candidates[:max_review_files]
+    merged = [c["file"] for c in selected_candidates]
+            
+    # 5. Log details (Temporary Verification Logging)
+    print("=== FILE SELECTION ===")
+    print("\nPriority Files:")
+    for f in priority_files:
+        print(f"- {f['filename']}")
+    print("\nRisk Files:")
+    for f in risk_files:
+        print(f"- {f['filename']}")
+    print("\nSemantic Files:")
+    for f in semantic_files:
+        print(f"- {f['filename']}")
+    print(f"\nDynamic Review Limit: {max_review_files} (Total project files: {len(all_files)})")
+    print("\nCandidate Ranking Scores:")
+    for c in ranked_candidates:
+        print(f"- {c['filename']}: Score = {c['score']:.2f}")
+    print("\nFinal Selected Files:")
+    for f in merged:
+        print(f"- {f['filename']} ({f['source']})")
+    print("\nRisk Scores:")
+    for filename, score in sorted(all_scores.items(), key=lambda x: x[1], reverse=True):
+        print(f"{filename} -> {score}")
+    print("======================")
     
-    return final_files
+    return merged

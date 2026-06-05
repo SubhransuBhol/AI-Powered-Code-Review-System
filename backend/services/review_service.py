@@ -115,6 +115,11 @@ def review_project(zip_path):
 
     files = get_project_files(extract_path)
 
+    if len(files) > 150:
+        print(
+            f"Large repository detected ({len(files)} files)"
+        )
+
     print("Files found:", len(files))
     print("Reading:", time.time() - start)
 
@@ -137,6 +142,18 @@ def review_project(zip_path):
     hybrid_files = hybrid_retrieve(query, files, semantic_top_k=5)
     ids = [f["filename"] for f in hybrid_files]
     documents = [f["content"] for f in hybrid_files]
+    
+    # Analyze architecture first to get project_type for context
+    all_files_dict = {f["filename"]: f["content"] for f in files}
+    arch_analysis = analyze_architecture(all_files_dict)
+    project_type = arch_analysis.get("project_type", "Backend API Application")
+    
+    from utils.file_reader import build_lightweight_context
+    selected_filenames = [f["filename"] for f in hybrid_files]
+    project_context = build_lightweight_context(files, selected_filenames, project_type)
+    
+    has_env_file = any(f["filename"].endswith(".env") or ".env." in f["filename"] for f in files)
+    file_path_map = {f["filename"]: f.get("filepath") for f in hybrid_files}
 
     print(
         "Retrieved Files:",
@@ -154,7 +171,10 @@ def review_project(zip_path):
 
         review_jobs.append({
             "filename": filename,
-            "content": content
+            "content": content,
+            "filepath": file_path_map.get(filename),
+            "project_context": project_context,
+            "has_env_file": has_env_file
         })
 
     all_reviews = ""
@@ -241,10 +261,6 @@ def review_project(zip_path):
 
         Critical Findings:{critical_str}"""
     
-    score_sec = build_score(total_bugs, total_security, total_improvements)
-    critical_sec = build_critical_issues(critical_findings)
-    recs_sec = build_recommendations(total_bugs, total_security, total_improvements)
-    
     all_files_dict = {f["filename"]: f["content"] for f in files}
     duplicates = detect_duplicates(all_files_dict)
     dup_sec = generate_duplicate_report_section(duplicates)
@@ -254,6 +270,20 @@ def review_project(zip_path):
     
     arch_analysis = analyze_architecture(all_files_dict)
     arch_sec = generate_architecture_report_section(arch_analysis)
+    
+    arch_risk = arch_analysis.get("risk_level")
+    has_duplicates = bool(duplicates)
+    
+    score_sec = build_score(
+        total_bugs,
+        total_security,
+        total_improvements,
+        critical_findings=critical_findings,
+        architecture_risk=arch_risk,
+        has_duplicates=has_duplicates
+    )
+    critical_sec = build_critical_issues(critical_findings)
+    recs_sec = build_recommendations(total_bugs, total_security, total_improvements)
     
     py_sections = {
         "code_quality": score_sec,
@@ -272,6 +302,18 @@ def review_project(zip_path):
         llm_output
     )
 
+    from services.master_review_builder import validate_and_fix_consistency
+    llm_sections = validate_and_fix_consistency(
+        llm_sections,
+        critical_findings=critical_findings,
+        total_security=total_security,
+        overall_risk=overall_risk,
+        high_risk_files=high_risk_files,
+        all_reviews_text=all_reviews,
+        total_bugs=total_bugs,
+        total_improvements=total_improvements
+    )
+
     project_summary = stitch_master_review(
         llm_sections,
         py_sections
@@ -288,6 +330,14 @@ def review_project(zip_path):
         + project_summary
         + "\n\n"
         + all_reviews.strip()
+    )
+    
+    from services.master_review_builder import final_report_count_validator
+    master_report = final_report_count_validator(
+        master_report,
+        total_improvements=total_improvements,
+        total_bugs=total_bugs,
+        total_security=total_security
     )
     
     report_file = save_report(master_report,overall_risk)
