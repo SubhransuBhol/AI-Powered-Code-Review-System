@@ -49,9 +49,7 @@ def get_project_files(project_path):
 
         for file in files:
 
-            if not file.endswith(
-                SUPPORTED_EXTENSIONS
-            ):
+            if not file.endswith(SUPPORTED_EXTENSIONS) and file != "requirements.txt":
                 continue
 
             file_path = os.path.join(

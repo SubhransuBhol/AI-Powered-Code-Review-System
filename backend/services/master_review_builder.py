@@ -131,6 +131,11 @@ def stitch_master_review(llm_sections, py_sections):
         py_sections["critical_issues"],
         llm_sections["security"],
         py_sections["recommendations"],
+        py_sections.get("dependency_security"),
+        py_sections.get("architecture_analysis"),
+        py_sections["duplicate_code"],
         llm_sections["verdict"]
     ]
+    parts = [p for p in parts if p]
     return "\n\n".join(parts)
+

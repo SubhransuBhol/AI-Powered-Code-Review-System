@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
-from review_service import review_project
+from services.review_service import review_project
 from fastapi.responses import FileResponse
-from github_review_service import (
+from services.github_review_service import (
     review_github_repository
 )
 from pydantic import BaseModel

@@ -1,15 +1,27 @@
-from master_review import generate_master_review
-from master_review_builder import (
+from services.master_review import generate_master_review
+from services.master_review_builder import (
     build_score,
     build_critical_issues,
     build_recommendations,
     parse_llm_sections,
     stitch_master_review
 )
+from utils.duplicate_detector import (
+    detect_duplicates,
+    generate_duplicate_report_section
+)
+from dependency_scanner.dependency_scanner import (
+    scan_project_dependencies,
+    generate_dependency_report_section
+)
+from utils.architecture_analyzer import (
+    analyze_architecture,
+    generate_architecture_report_section
+)
 from utils.github_cloner import clone_repository
 from rag.project_vectorizer import vectorize_project
 from rag.hybrid_retriever import hybrid_retrieve
-from review_engine import review_single_file
+from services.review_engine import review_single_file
 from utils.report_saver import save_report
 from rag.review_query import generate_review_query
 from rag.vector_store import clear_collection
@@ -190,10 +202,23 @@ def review_github_repository(
     critical_sec = build_critical_issues(critical_findings)
     recs_sec = build_recommendations(total_bugs, total_security, total_improvements)
     
+    all_files_dict = {f["filename"]: f["content"] for f in files}
+    duplicates = detect_duplicates(all_files_dict)
+    dup_sec = generate_duplicate_report_section(duplicates)
+    
+    manifests_found, dep_findings = scan_project_dependencies(all_files_dict)
+    dep_sec = generate_dependency_report_section(manifests_found, dep_findings)
+    
+    arch_analysis = analyze_architecture(all_files_dict)
+    arch_sec = generate_architecture_report_section(arch_analysis)
+    
     py_sections = {
         "code_quality": score_sec,
         "critical_issues": critical_sec,
-        "recommendations": recs_sec
+        "recommendations": recs_sec,
+        "dependency_security": dep_sec,
+        "architecture_analysis": arch_sec,
+        "duplicate_code": dup_sec
     }
 
     high_risk_str = ""

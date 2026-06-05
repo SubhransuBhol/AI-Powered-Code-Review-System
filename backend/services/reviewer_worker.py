@@ -1,6 +1,5 @@
 import os
-
-from review_engine import review_single_file
+from services.review_engine import review_single_file
 from static_analysis.bandit_runner import (
     run_bandit
 )

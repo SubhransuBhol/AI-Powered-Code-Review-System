@@ -20,6 +20,9 @@ SUBSECTION_HEADINGS = [
     "Critical Issues",
     "Security Assessment",
     "Recommended Actions",
+    "Dependency Security Analysis",
+    "Repository Architecture Analysis",
+    "Duplicate Code Analysis",
     "Final Verdict",
     "Risk Level",
     "Bugs",
@@ -115,6 +118,13 @@ def generate_pdf_report(
         parent=body_style,
         leftIndent=15,
         firstLineIndent=-10,
+        spaceAfter=4
+    )
+
+    indented_body_style = ParagraphStyle(
+        "CustomIndentedBody",
+        parent=body_style,
+        leftIndent=15,
         spaceAfter=4
     )
 
@@ -311,9 +321,14 @@ def generate_pdf_report(
             continue
 
         # Regular Body Paragraphs
-        elements.append(
-            Paragraph(md_to_html(line), body_style)
-        )
+        if raw_line.startswith("  ") or raw_line.startswith("\t"):
+            elements.append(
+                Paragraph(md_to_html(line), indented_body_style)
+            )
+        else:
+            elements.append(
+                Paragraph(md_to_html(line), body_style)
+            )
 
     # =========================
     # FOOTER

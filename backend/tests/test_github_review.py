@@ -1,4 +1,4 @@
-from github_review_service import (
+from services.github_review_service import (
     review_github_repository
 )
 

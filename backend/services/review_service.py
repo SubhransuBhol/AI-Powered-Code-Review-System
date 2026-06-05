@@ -1,24 +1,36 @@
-﻿from rag.project_vectorizer import vectorize_project
+from rag.project_vectorizer import vectorize_project
 from rag.hybrid_retriever import hybrid_retrieve
 from rag.review_query import generate_review_query
 from utils.zip_handler import extract_zip
 from utils.file_reader import get_project_files
 from rag.vector_store import clear_collection
-from review_engine import review_single_file
-from master_review import generate_master_review
+from services.review_engine import review_single_file
+from services.master_review import generate_master_review
 from utils.report_saver import save_report
 from utils.report_summary import (
     calculate_file_risk,calculate_overall_risk
 )
-from master_review_builder import (
+from services.master_review_builder import (
     build_score,
     build_critical_issues,
     build_recommendations,
     parse_llm_sections,
     stitch_master_review
 )
+from utils.duplicate_detector import (
+    detect_duplicates,
+    generate_duplicate_report_section
+)
+from dependency_scanner.dependency_scanner import (
+    scan_project_dependencies,
+    generate_dependency_report_section
+)
+from utils.architecture_analyzer import (
+    analyze_architecture,
+    generate_architecture_report_section
+)
 from concurrent.futures import ThreadPoolExecutor
-from reviewer_worker import review_file
+from services.reviewer_worker import review_file
 import time
 import os
 
@@ -229,26 +241,27 @@ def review_project(zip_path):
 
         Critical Findings:{critical_str}"""
     
-    score_sec = build_score(
-        total_bugs,
-        total_security,
-        total_improvements
-    )
-
-    critical_sec = build_critical_issues(
-        critical_findings
-    )
-
-    recs_sec = build_recommendations(
-        total_bugs,
-        total_security,
-        total_improvements
-    )
-
+    score_sec = build_score(total_bugs, total_security, total_improvements)
+    critical_sec = build_critical_issues(critical_findings)
+    recs_sec = build_recommendations(total_bugs, total_security, total_improvements)
+    
+    all_files_dict = {f["filename"]: f["content"] for f in files}
+    duplicates = detect_duplicates(all_files_dict)
+    dup_sec = generate_duplicate_report_section(duplicates)
+    
+    manifests_found, dep_findings = scan_project_dependencies(all_files_dict)
+    dep_sec = generate_dependency_report_section(manifests_found, dep_findings)
+    
+    arch_analysis = analyze_architecture(all_files_dict)
+    arch_sec = generate_architecture_report_section(arch_analysis)
+    
     py_sections = {
         "code_quality": score_sec,
         "critical_issues": critical_sec,
-        "recommendations": recs_sec
+        "recommendations": recs_sec,
+        "dependency_security": dep_sec,
+        "architecture_analysis": arch_sec,
+        "duplicate_code": dup_sec
     }
 
     llm_output = generate_master_review(
